@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, date
 from tabulate import tabulate
 import sys
 import yfinance as yf
-
+import alias_reader
 """
 This program calculates XIRR.
 XIRR can be calculated for a single stock or the entire portfolio.
@@ -206,20 +206,10 @@ def get_close_price(symbol, date, stock_history_database):
 
 def row_transformations(data):
     data['symbol'] = data['symbol'].apply(trim_hyphen_suffix)
-    data['symbol'] = data['symbol'].replace('DEEPAKNI', 'DEEPAKNTR')
-    data['symbol'] = data['symbol'].replace('CAPPL', 'CAPLIPOINT')
-    data['symbol'] = data['symbol'].replace('LINCOPH', 'LINCOLN')
-    data['symbol'] = data['symbol'].replace('SALZER', 'SALZERELEC')
-    data['symbol'] = data['symbol'].replace('PREMEXPLQ', 'PREMEXPLN')
-    data['symbol'] = data['symbol'].replace('INOXLEISUR', 'PVRINOX')
-    data['symbol'] = data['symbol'].replace('COMPUAGE', 'COMPINFO')
-    data['symbol'] = data['symbol'].replace('SHBCLQ', 'SBCL')
-    data['symbol'] = data['symbol'].replace('PHILIPCARB', 'PCBL')
-    data['symbol'] = data['symbol'].replace('JYOTI', 'JYOTISTRUC')
-    data['symbol'] = data['symbol'].replace('TIPSINDLTD', 'TIPSMUSIC')
-    data['symbol'] = data['symbol'].replace('LTI', 'LTIM')
-    data['symbol'] = data['symbol'].replace('DHARAMSI', 'DMCC')
-    data['symbol'] = data['symbol'].replace('IBULHSGFIN', 'SAMMAANCAP')
+    for oldname, newname in alias_reader.getAliases('resources/aliases.csv').items():
+        print('replacing', oldname, newname)
+        data['symbol'] = data['symbol'].replace(oldname, newname)
+
     return data
 
 # Define a function to read and process all CSV files
