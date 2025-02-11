@@ -303,102 +303,94 @@ def getStockDataFromYahooFinance(symbol, suffix):
 
     return hist
 
-# Specify the pattern for your CSV files (replace with your pattern)
-folder_name = sys.argv[1]
-mode: str = 'xirr'
-target_stock : str = ''
-if len(sys.argv) > 2:
-    mode = sys.argv[2]
-if mode == 'trade_history':
-    target_stock = sys.argv[3]
+def my_main(folder_name, mode, target_stock):
+    print("Tradebook directory specified as: ", folder_name)
+    print("Operating in mode: ", mode)
+    tradebook_file_pattern = "tradebook-*.csv"
+    holdings_file = 'holdings.csv'
+    corporate_actions_file = 'corporate-actions.csv'
 
-print("Tradebook directory specified as: ", folder_name)
-print("Operating in mode: ", mode)
-tradebook_file_pattern = "tradebook-*.csv"
-holdings_file = 'holdings.csv'
-corporate_actions_file = 'corporate-actions.csv'
+    # Read data from all CSV files
+    tradebookData = process_tradebooks(folder_name, tradebook_file_pattern)
+    holdingsData = process_holdings(os.path.join(folder_name, holdings_file))
+    corporateActionsData = process_corporate_actions(os.path.join(folder_name, corporate_actions_file))
 
-# Read data from all CSV files
-tradebookData = process_tradebooks(folder_name, tradebook_file_pattern)
-holdingsData = process_holdings(os.path.join(folder_name, holdings_file))
-corporateActionsData = process_corporate_actions(os.path.join(folder_name, corporate_actions_file))
+    # Calculate XIRR
+    #currentValueOfPortfolio = 8071742
+    #pfResults_withPresentValue = calculate_xirr_portfolio(tradebookData.copy(), currentValueOfPortfolio)
+    #print(f"Portfolio XIRR (on basis of present value): {pfResults_withPresentValue['xirr']:.2%}")
 
-# Calculate XIRR
-#currentValueOfPortfolio = 8071742
-#pfResults_withPresentValue = calculate_xirr_portfolio(tradebookData.copy(), currentValueOfPortfolio)
-#print(f"Portfolio XIRR (on basis of present value): {pfResults_withPresentValue['xirr']:.2%}")
-
-## merge holdings data with trade data
-merged_data = pd.concat([tradebookData, holdingsData])
-if len(tradebookData) + len(holdingsData) != len(merged_data):
-    print("ERROR: merging of holdings data with tradebook data resulted in mismatch of rows")
+    ## merge holdings data with trade data
+    merged_data = pd.concat([tradebookData, holdingsData])
+    if len(tradebookData) + len(holdingsData) != len(merged_data):
+        print("ERROR: merging of holdings data with tradebook data resulted in mismatch of rows")
 
 
-# Download information about all portfolio stocks from yahoo finance APIs
-all_unique_symbols = merged_data['symbol'].unique()
-#stock_history_database = getStocksHistory(all_unique_symbols)
-#stock_history_database = getStocksHistory(['SHAKTIPUMP'])
-#stock_history_database.to_csv('stock_history_database.txt')
-#stock_history_database.to_excel('e_stock_history_database.xlsx')
-#df = pd.read_csv('stock_history_database.txt')
-#e_df = pd.read_excel('e_stock_history_database.xlsx')
-#if e_df.equals(stock_history_database):
-#    print("DataFrames are equal.")
-#else:
-#    print("DataFrames are not equal.")
+    # Download information about all portfolio stocks from yahoo finance APIs
+    all_unique_symbols = merged_data['symbol'].unique()
+    #stock_history_database = getStocksHistory(all_unique_symbols)
+    #stock_history_database = getStocksHistory(['SHAKTIPUMP'])
+    #stock_history_database.to_csv('stock_history_database.txt')
+    #stock_history_database.to_excel('e_stock_history_database.xlsx')
+    #df = pd.read_csv('stock_history_database.txt')
+    #e_df = pd.read_excel('e_stock_history_database.xlsx')
+    #if e_df.equals(stock_history_database):
+    #    print("DataFrames are equal.")
+    #else:
+    #    print("DataFrames are not equal.")
 
-#if df.equals(stock_history_database):
-#    print("DataFrames are equal txt.")
-#else:
-#    print("DataFrames are not equal txt.")
+    #if df.equals(stock_history_database):
+    #    print("DataFrames are equal txt.")
+    #else:
+    #    print("DataFrames are not equal txt.")
 
 
-#stock_history_database = getStocksHistory(["FROG"])
-#print(stock_history_database.head())
-#get_close_price('MAPMYINDIA', date.fromisoformat("2024-12-20"), stock_history_database)
-#createSnapshots(merged_data, stock_history_database)
+    #stock_history_database = getStocksHistory(["FROG"])
+    #print(stock_history_database.head())
+    #get_close_price('MAPMYINDIA', date.fromisoformat("2024-12-20"), stock_history_database)
+    #createSnapshots(merged_data, stock_history_database)
 
-stock_wise_results = calculate_xirr_stock(merged_data.copy(), corporateActionsData, mode, target_stock)
+    stock_wise_results = calculate_xirr_stock(merged_data.copy(), corporateActionsData, mode, target_stock)
 
-if (mode == 'xirr'):
-    pfResults = calculate_xirr_portfolio(merged_data.copy(), corporateActionsData)
-    print(f"Portfolio XIRR: {pfResults['xirr']:.2%}")
+    if (mode == 'xirr'):
+        pfResults = calculate_xirr_portfolio(merged_data.copy(), corporateActionsData)
+        print(f"Portfolio XIRR: {pfResults['xirr']:.2%}")
 
-    if stock_wise_results['xirr'] is None:
-        # This should not be possible as we consider present value of holdings as sell txn
-        print("No sell transactions found in any of the CSV files.")
-        sys.exit(0)
+        if stock_wise_results['xirr'] is None:
+            # This should not be possible as we consider present value of holdings as sell txn
+            print("No sell transactions found in any of the CSV files.")
+            sys.exit(0)
 
-# Print XIRR for each stock (if available)
-print("XIRR for individual stocks:")
-df = pd.DataFrame(stock_wise_results['xirr'])
-# transposed index (key as first column)
-df = df.T
-# Set options to display all rows and columns without truncation
-pd.set_option('display.max_rows', None)
+    # Print XIRR for each stock (if available)
+    print("XIRR for individual stocks:")
+    df = pd.DataFrame(stock_wise_results['xirr'])
+    # transposed index (key as first column)
+    df = df.T
+    # Set options to display all rows and columns without truncation
+    pd.set_option('display.max_rows', None)
 
-# Print the DataFrame with
-print(df)
+    # Print the DataFrame with
+    print(df)
 
-if df.size > 10:
-    # Sort the DataFrame by 'Age' in ascending order (optional, specify descending order with ascending=False)
-    sorted_df = df.sort_values(by='profit')
-    print('\n----- Top 10 Absolute Profit trades -----\n')
-    print(sorted_df.tail(10))
-    print('\n----- Top 10 Absolute Loss trades -----\n')
-    print(sorted_df.head(10))
+    if df.size > 10:
+        # Sort the DataFrame by 'Age' in ascending order (optional, specify descending order with ascending=False)
+        sorted_df = df.sort_values(by='profit')
+        print('\n----- Top 10 Absolute Profit trades -----\n')
+        print(sorted_df.tail(10))
+        print('\n----- Top 10 Absolute Loss trades -----\n')
+        print(sorted_df.head(10))
 
-    sorted_df = df.sort_values(by='return_made')
-    print('\n--- Top 10 % returns trades -----\n')
-    print(sorted_df.tail(10))
-    print('\n----- Top 10 % loss trades -----\n')
-    print(sorted_df.head(10))
+        sorted_df = df.sort_values(by='return_made')
+        print('\n--- Top 10 % returns trades -----\n')
+        print(sorted_df.tail(10))
+        print('\n----- Top 10 % loss trades -----\n')
+        print(sorted_df.head(10))
 
-# Print list of symbols with negative cashflows (if any)
-if stock_wise_results['symbols_with_no_sells']:
-    print("\nsymbols_with_no_sells (XIRR not calculated):")
-    print(", ".join(stock_wise_results['symbols_with_no_sells']))
+    # Print list of symbols with negative cashflows (if any)
+    if stock_wise_results['symbols_with_no_sells']:
+        print("\nsymbols_with_no_sells (XIRR not calculated):")
+        print(", ".join(stock_wise_results['symbols_with_no_sells']))
 
-if stock_wise_results['symbols_with_no_buys']:
-    print("\nsymbols_with_no_buys (XIRR not calculated):")
-    print(", ".join(stock_wise_results['symbols_with_no_buys']))
+    if stock_wise_results['symbols_with_no_buys']:
+        print("\nsymbols_with_no_buys (XIRR not calculated):")
+        print(", ".join(stock_wise_results['symbols_with_no_buys']))
