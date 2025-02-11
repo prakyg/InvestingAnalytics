@@ -24,7 +24,6 @@ python3 ./xirr.py <folder-name>
 In the <folder-name>:
 1. Add all the downloaded tradebooks from zerodha in CSV format. The program specifically looks for file with `tradebook-*` pattern.
 1. Add the `holdings.csv` file (you can download from the kite web Holdings page)
-1. Add an empty csv named `corporate-actions.csv`. TODO: Fix in next commit
 
 To calculate XIRR, we assume that all your holdings (from `holdings.csv`) are sold on the day script is run. So if your holdings 
 are old, while script is run at a later date, this might make your XIRR slightly lower as period has become longer.
