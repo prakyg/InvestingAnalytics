@@ -8,14 +8,20 @@ def parseCommandLine(args):
     """
     """
     tradebook_directory = sys.argv[1]
+    if not isDirectory(tradebook_directory):
+        return
     mode: str = 'xirr'
-    target_stock : str = ''
+    target_stock : str = None
     if len(sys.argv) > 2:
         mode = sys.argv[2]
+        if not isValidMode(mode):
+            allowed_modes_formatted = format_with_pipe(allowed_modes)
+            print(f'FATAL: mode should be one of {allowed_modes_formatted}')
+            return
     if mode == 'trade_history':
         target_stock = sys.argv[3]
 
-    xirr_f.my_main(tradebook_directory, mode, None)
+    xirr_f.my_main(tradebook_directory, mode, target_stock)
 
 def isDirectory(path):
     if not os.path.exists(path):
