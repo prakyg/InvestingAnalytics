@@ -304,16 +304,16 @@ def getStockDataFromYahooFinance(symbol, suffix):
     return hist
 
 def my_main(folder_name, mode, target_stock):
-    print("Tradebook directory specified as: ", folder_name)
-    print("Operating in mode: ", mode)
+    print("INFO: Tradebook directory specified as: ", folder_name)
+    print("INFO: Operating in mode: ", mode)
     tradebook_file_pattern = "tradebook-*.csv"
     holdings_file = 'holdings.csv'
-    corporate_actions_file = 'corporate-actions.csv'
+    corporate_actions_file = 'resources/corporate-actions.csv'
 
     # Read data from all CSV files
     tradebookData = process_tradebooks(folder_name, tradebook_file_pattern)
     holdingsData = process_holdings(os.path.join(folder_name, holdings_file))
-    corporateActionsData = process_corporate_actions(os.path.join(folder_name, corporate_actions_file))
+    corporateActionsData = process_corporate_actions(corporate_actions_file)
 
     # Calculate XIRR
     #currentValueOfPortfolio = 8071742
