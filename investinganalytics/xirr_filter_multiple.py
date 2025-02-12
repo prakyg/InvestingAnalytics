@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, date
 from tabulate import tabulate
 import sys
 import yfinance as yf
-import alias_reader
+from . import alias_reader
 """
 This program calculates XIRR.
 XIRR can be calculated for a single stock or the entire portfolio.

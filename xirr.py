@@ -1,6 +1,6 @@
 import sys
 import os
-import xirr_filter_multiple as xirr_f
+from investinganalytics import xirr_filter_multiple as xirr_f
 
 # Specify the pattern for your CSV files (replace with your pattern)
 allowed_modes = ['xirr', 'trade_history']
