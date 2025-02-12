@@ -28,8 +28,21 @@ In the <folder-name>:
 To calculate XIRR, we assume that all your holdings (from `holdings.csv`) are sold on the day script is run. So if your holdings 
 are old, while script is run at a later date, this might make your XIRR slightly lower as period has become longer.
 
-## How to handle stock symbol changes?
-Many times stock symbol gets changed by companies. Like HBL Power Systems changed its name to HBL Engineering. Its symbol was changed from HBLPOWER to HBLENGINE. To accomodate for this transformation, manual entries need to be done in the aliases.csv file in the resources folder before running the program.
+## Stock market events handling
+### How to handle stock symbol changes?
+Many times stock symbol gets changed by companies. Example, HBL Power Systems changed its symbol from HBLPOWER to HBLENGINE. To accomodate this, manual entries need to be done in the aliases.csv file in the resources folder before running the program. Feel free to contribute to the repo's aliases.csv file by raising a pull request.
+
+### IPO allotments
+Zerodha tradebook will have no buy entry. You can create a dummy tradebook where you can place a buy transaction for the ipo
+
+### Stock splits, reverse splits and bonuses
+These are handled automatically as price * qty remains the same.
+
+### Rights issue, rights entitlement and partly-paid shares 
+TODO: work in progress
+
+### Mergers and demerges 
+TODO: work in progress. Data will need to be supplied in the corporate-actions.csv file.
 
 ## Python Module Dependencies
 pandas

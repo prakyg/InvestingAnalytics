@@ -6,6 +6,7 @@ import sys
 import yfinance as yf
 from . import alias_reader
 from .zerodha import tradebooks_reader
+from .zerodha import holdings_reader
 import os
 """
 This program calculates XIRR.
@@ -212,21 +213,6 @@ def row_transformations(data):
 
     return data
 
-def process_holdings(filename):
-    holdings_data = readFromFileSystem(filename)
-    # Rename columns in holdings file of zerodha to the format of tradebooks
-    holdings_data.rename(columns = {'Instrument':'symbol', 'Qty.': 'quantity', 'LTP':'price'}, inplace = True)
-    holdings_data = row_transformations(holdings_data)
-
-    # Drop unnecessary columns
-    columns_to_keep = ['symbol', 'quantity', 'price']
-    holdings_data = holdings_data[columns_to_keep]
-
-    # Assume that all holding are being realized today, so insert columns of trade_type and trade_date
-    holdings_data['trade_date'] = datetime.now().strftime("%Y-%m-%d")
-    holdings_data['trade_type'] = 'sell'
-    return holdings_data
-
 def process_corporate_actions(filename):
     corporate_actions_data = readFromFileSystem(filename)
     print(corporate_actions_data)
@@ -290,7 +276,7 @@ def my_main(folder_name, mode, target_stock):
 
     # Read data from all CSV files
     tradebookData = tradebooks_reader.getTrades(folder_name, tradebook_file_pattern)
-    holdingsData = process_holdings(os.path.join(folder_name, holdings_file))
+    holdingsData = holdings_reader.getHoldingsAsSellTrades(os.path.join(folder_name, holdings_file))
     corporateActionsData = process_corporate_actions(corporate_actions_file)
 
     # Calculate XIRR

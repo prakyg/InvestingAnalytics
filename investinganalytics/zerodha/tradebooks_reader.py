@@ -15,7 +15,7 @@ def row_transformations(data):
 
     return data
 
-def getTrades(dir, filename_pattern):
+def getTrades(dir, filename_pattern, verbose=False):
     """
     Read and process all files
     TODO: ignore non-csv
@@ -33,10 +33,11 @@ def getTrades(dir, filename_pattern):
         all_data = pd.concat([all_data, data])
 
     all_data = row_transformations(all_data)
-    print(all_data)
     # keep only relevant columns
     columns_to_keep = ['symbol', 'trade_date', 'trade_type', 'quantity', 'price']
     all_data = all_data[columns_to_keep]
-    print(all_data)
+    if verbose:
+        print('------- Trades Data ------')
+        print(all_data)
 
     return all_data
