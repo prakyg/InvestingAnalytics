@@ -1,12 +1,12 @@
 import pandas as pd
 from pyxirr import xirr
-import glob
-import os
 from datetime import datetime, timedelta, date
 from tabulate import tabulate
 import sys
 import yfinance as yf
 from . import alias_reader
+from .zerodha import tradebooks_reader
+import os
 """
 This program calculates XIRR.
 XIRR can be calculated for a single stock or the entire portfolio.
@@ -212,28 +212,6 @@ def row_transformations(data):
 
     return data
 
-# Define a function to read and process all CSV files
-# Returns a pandas dataframe containing the following columns:
-# symbol -
-# trade_date -
-# trade_type -
-# quantity -
-# price -
-def process_tradebooks(folder_name, file_pattern):
-    all_data = pd.DataFrame()
-    for filename in glob.glob(os.path.join(folder_name, file_pattern)):
-        data = readFromFileSystem(filename)
-        all_data = pd.concat([all_data, data])
-
-    all_data = row_transformations(all_data)
-    print(all_data)
-    # Drop unnecessary columns
-    columns_to_keep = ['symbol', 'trade_date', 'trade_type', 'quantity', 'price']
-    all_data = all_data[columns_to_keep]
-    print(all_data)
-
-    return all_data
-
 def process_holdings(filename):
     holdings_data = readFromFileSystem(filename)
     # Rename columns in holdings file of zerodha to the format of tradebooks
@@ -311,7 +289,7 @@ def my_main(folder_name, mode, target_stock):
     corporate_actions_file = 'resources/corporate-actions.csv'
 
     # Read data from all CSV files
-    tradebookData = process_tradebooks(folder_name, tradebook_file_pattern)
+    tradebookData = tradebooks_reader.getTrades(folder_name, tradebook_file_pattern)
     holdingsData = process_holdings(os.path.join(folder_name, holdings_file))
     corporateActionsData = process_corporate_actions(corporate_actions_file)
 
