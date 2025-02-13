@@ -32,7 +32,28 @@ Dependencies: Your python env should have pandas module installed.
 
 
 """
-def calculate_xirr_portfolio(data, corporateActionsData, presentValue = None):
+def trades_to_cashflows(trades):
+    cashflows = []
+    for index, trade in trades.iterrows():
+        # Consider only buy (negative) and sell (positive) transactions
+        if not trade['trade_type'].lower() in ['buy', 'sell']:
+            print('WARN: Skipping row found with trade_type != buy / sell')
+            continue
+        
+        # Adjust cashflow for quantity and price
+        cashflow = trade['quantity'] * trade['price']
+        if trade['trade_type'].lower() == 'buy':
+            cashflow = cashflow * -1
+
+        cashflows.append((trade['trade_date'], cashflow))
+        # Check for at least one sell transaction
+
+    if len(trades.index) != len(cashflows):
+        print('DEBUG: Mismatch in entries in trades and cashflows')
+
+    return cashflows
+
+def calculate_xirr(trades, presentValue = None):
     """
     This program calculates XIRR.
     XIRR can be calculated for a single stock or the entire portfolio.
@@ -43,20 +64,7 @@ def calculate_xirr_portfolio(data, corporateActionsData, presentValue = None):
     Returns:
         A dictionary containing XIRR for the stock or portfolio and a list of symbols with negative cashflows.
     """
-    cashflows = []
-    for index, row in data.iterrows():
-        # Consider only buy (negative) and sell (positive) transactions
-        if row['trade_type'].lower() in ["buy", "sell"]:
-            # Adjust cashflow for quantity and price
-            consideration = row['quantity'] * row['price']
-            cashflow = consideration * -1 if row['trade_type'].lower() == "buy" else consideration
-            # Adjust for trade date (assuming trade_date is a datetime format)
-            cashflows.append((row['trade_date'], cashflow))
-            # Check for at least one sell transaction
-        else:
-            print("WARNING: A row is found with trade_type != buy or sell")
-    if len(data.index) != len(cashflows):
-        print(f"ERROR: Mismatch in entries in 'data' and 'cashflows'")
+    cashflows = trades_to_cashflows(trades)
 
     if presentValue:
         cashflows.append((datetime.now().strftime("%Y-%m-%d"), presentValue))
@@ -77,7 +85,7 @@ def validate_quantity(symbol, group_data):
         print(f"For symbol: {symbol}, buy quantity ({buy_quantity}) !=  sell quantity ({sell_quantity})")
 
 
-def calculate_xirr_stock(data, corporateActionsData, mode, target_stock):
+def calculate_xirr_stock(trades, mode, target_stock):
     """
     Calculates XIRR for a single stock or the entire portfolio.
 
@@ -90,40 +98,35 @@ def calculate_xirr_stock(data, corporateActionsData, mode, target_stock):
     symbols_with_no_buys = []
     symbols_with_no_sells = []
 
-    if data['trade_type'].str.contains("sell").any():
+    if trades['trade_type'].str.contains("sell").any():
         # Group data by symbol and calculate XIRR for each
-        grouped_data = data.groupby('symbol')
+        grouped_trades = trades.groupby('symbol')
         xirr_results = {}
-        for symbol, group_data in grouped_data:
+        for symbol, symbol_trades in grouped_trades:
             if mode == 'trade_history':
                 if target_stock == symbol:
                     print("Calculating for :" + symbol)
-                    print(group_data.sort_values(by='trade_date', ascending=True))
+                    print(symbol_trades.sort_values(by='trade_date', ascending=True))
                 else:
                     continue
 
-            cashflows = []
+            symbol_cashflows = trades_to_cashflows(symbol_trades)
+            
             profit = 0
             total_acquisitions = 0
-            xirr_val = None
-            for index, row in group_data.iterrows():
-                if row['trade_type'].lower() in ["buy", "sell"]:
-                    # Adjust cashflow for quantity and price
-                    consideration = row['quantity'] * row['price']
-                    cashflow = consideration * -1 if row['trade_type'].lower() == "buy" else consideration
-                    # Adjust for trade date (assuming trade_date is a datetime format)
-                    cashflows.append((row['trade_date'], cashflow))
-                    profit = profit + cashflow
-                    if cashflow < 0:
-                        total_acquisitions = total_acquisitions + cashflow
+            for cashflow in symbol_cashflows:
+                profit += cashflow[1]
+                if cashflow[1] < 0:
+                    total_acquisitions = total_acquisitions + cashflow[1]
 
-            validate_quantity(symbol, group_data)
-            if all(row['trade_type'].lower() == "sell" for index, row in group_data.iterrows()):
+            validate_quantity(symbol, symbol_trades)
+            xirr_val = None
+            if all(row['trade_type'].lower() == "sell" for index, row in symbol_trades.iterrows()):
                 symbols_with_no_buys.append(symbol)
-            elif all(row['trade_type'].lower() == "buy" for index, row in group_data.iterrows()):
+            elif all(row['trade_type'].lower() == "buy" for index, row in symbol_trades.iterrows()):
                 symbols_with_no_sells.append(symbol)
             else:
-                xirr_val = xirr(cashflows)
+                xirr_val = xirr(symbol_cashflows)
 
             percent_return = 0
             if total_acquisitions != 0:
@@ -281,17 +284,17 @@ def my_main(folder_name, mode, target_stock):
 
     # Calculate XIRR
     #currentValueOfPortfolio = 8071742
-    #pfResults_withPresentValue = calculate_xirr_portfolio(tradebookData.copy(), currentValueOfPortfolio)
+    #pfResults_withPresentValue = calculate_xirr(tradebookData.copy(), currentValueOfPortfolio)
     #print(f"Portfolio XIRR (on basis of present value): {pfResults_withPresentValue['xirr']:.2%}")
 
     ## merge holdings data with trade data
-    merged_data = pd.concat([tradebookData, holdingsData])
-    if len(tradebookData) + len(holdingsData) != len(merged_data):
+    trades = pd.concat([tradebookData, holdingsData])
+    if len(tradebookData) + len(holdingsData) != len(trades):
         print("ERROR: merging of holdings data with tradebook data resulted in mismatch of rows")
 
 
     # Download information about all portfolio stocks from yahoo finance APIs
-    all_unique_symbols = merged_data['symbol'].unique()
+    all_unique_symbols = trades['symbol'].unique()
     #stock_history_database = getStocksHistory(all_unique_symbols)
     #stock_history_database = getStocksHistory(['SHAKTIPUMP'])
     #stock_history_database.to_csv('stock_history_database.txt')
@@ -314,10 +317,10 @@ def my_main(folder_name, mode, target_stock):
     #get_close_price('MAPMYINDIA', date.fromisoformat("2024-12-20"), stock_history_database)
     #createSnapshots(merged_data, stock_history_database)
 
-    stock_wise_results = calculate_xirr_stock(merged_data.copy(), corporateActionsData, mode, target_stock)
+    stock_wise_results = calculate_xirr_stock(trades.copy(), mode, target_stock)
 
     if (mode == 'xirr'):
-        pfResults = calculate_xirr_portfolio(merged_data.copy(), corporateActionsData)
+        pfResults = calculate_xirr(trades.copy())
         print(f"Portfolio XIRR: {pfResults['xirr']:.2%}")
 
         if stock_wise_results['xirr'] is None:
