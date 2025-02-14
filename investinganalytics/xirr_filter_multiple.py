@@ -5,6 +5,7 @@ from tabulate import tabulate
 import sys
 import yfinance as yf
 from . import alias_reader
+from . import trades_to_snapshots
 from .zerodha import tradebooks_reader
 from .zerodha import holdings_reader
 import os
@@ -34,7 +35,10 @@ Dependencies: Your python env should have pandas module installed.
 """
 def trades_to_cashflows(trades):
     cashflows = []
+    count_buys = 0
+    count_buys_plus_sells = 0
     for index, trade in trades.iterrows():
+        count_buys_plus_sells += 1
         # Consider only buy (negative) and sell (positive) transactions
         if not trade['trade_type'].lower() in ['buy', 'sell']:
             print('WARN: Skipping row found with trade_type != buy / sell')
@@ -43,6 +47,7 @@ def trades_to_cashflows(trades):
         # Adjust cashflow for quantity and price
         cashflow = trade['quantity'] * trade['price']
         if trade['trade_type'].lower() == 'buy':
+            count_buys += 1;
             cashflow = cashflow * -1
 
         cashflows.append((trade['trade_date'], cashflow))
@@ -51,7 +56,11 @@ def trades_to_cashflows(trades):
     if len(trades.index) != len(cashflows):
         print('DEBUG: Mismatch in entries in trades and cashflows')
 
-    return cashflows
+    return {
+        'cashflows': cashflows,
+        'has_one_buy': count_buys > 0,
+        'has_one_sell': (count_buys_plus_sells - count_buys) > 0
+    }
 
 def calculate_xirr(trades, presentValue = None):
     """
@@ -64,7 +73,11 @@ def calculate_xirr(trades, presentValue = None):
     Returns:
         A dictionary containing XIRR for the stock or portfolio and a list of symbols with negative cashflows.
     """
-    cashflows = trades_to_cashflows(trades)
+    if not trades['trade_type'].str.contains('sell').any():
+        print('WARN: No SELL trades found')
+        return {'xirr': None}
+
+    cashflows = trades_to_cashflows(trades)['cashflows']
 
     if presentValue:
         cashflows.append((datetime.now().strftime("%Y-%m-%d"), presentValue))
@@ -72,15 +85,15 @@ def calculate_xirr(trades, presentValue = None):
 
     return {'xirr': xirr_results}
 
-def validate_quantity(symbol, group_data):
+def validate_quantity(symbol, symbol_trades):
     #print(group_data)
     buy_quantity = 0
     sell_quantity = 0
-    for index, row in group_data.iterrows():
-        if row['trade_type'].lower() == "buy":
-            buy_quantity = buy_quantity + row['quantity']
+    for index, trade in symbol_trades.iterrows():
+        if trade['trade_type'].lower() == "buy":
+            buy_quantity = buy_quantity + trade['quantity']
         else:
-            sell_quantity = sell_quantity + row['quantity']
+            sell_quantity = sell_quantity + trade['quantity']
     if buy_quantity != sell_quantity:
         print(f"For symbol: {symbol}, buy quantity ({buy_quantity}) !=  sell quantity ({sell_quantity})")
 
@@ -110,7 +123,8 @@ def calculate_xirr_stock(trades, mode, target_stock):
                 else:
                     continue
 
-            symbol_cashflows = trades_to_cashflows(symbol_trades)
+            res = trades_to_cashflows(symbol_trades)
+            symbol_cashflows = res['cashflows']
             
             profit = 0
             total_acquisitions = 0
@@ -121,9 +135,9 @@ def calculate_xirr_stock(trades, mode, target_stock):
 
             validate_quantity(symbol, symbol_trades)
             xirr_val = None
-            if all(row['trade_type'].lower() == "sell" for index, row in symbol_trades.iterrows()):
+            if not res['has_one_buy']:
                 symbols_with_no_buys.append(symbol)
-            elif all(row['trade_type'].lower() == "buy" for index, row in symbol_trades.iterrows()):
+            elif not res['has_one_sell']:
                 symbols_with_no_sells.append(symbol)
             else:
                 xirr_val = xirr(symbol_cashflows)
@@ -156,11 +170,11 @@ The snapshot structure is as follows:
 Holdings will have:
     {Stock, quantity, close price}
 """
-def createSnapshots(tradebook, stock_history_database):
+def createSnapshots(trades, stock_history_database):
     snapshots = {}
     #TODO: do this in the data prep step
-    tradebook['trade_date'] = pd.to_datetime(tradebook['trade_date']).dt.date
-    start_date = tradebook['trade_date'].min()
+    trades['trade_date'] = pd.to_datetime(trades['trade_date']).dt.date
+    start_date = trades['trade_date'].min()
     print('Start date: ', start_date)
     print('type = ', type(start_date))
     current_date = start_date
@@ -175,7 +189,7 @@ def createSnapshots(tradebook, stock_history_database):
         print('Creating portfolio snapshot for date:', current_date)
         ## get all rows where trade_date > last_snapshot_date but <= current_date , TODO:
         ## for now constructing from start_date each time
-        df_trades_before_current_date = tradebook[tradebook['trade_date'] <= current_date].copy()
+        df_trades_before_current_date = trades[trades['trade_date'] <= current_date].copy()
         print('----@----@---', df_trades_before_current_date)
         df_trades_before_current_date['quantity'] = df_trades_before_current_date.apply(lambda row: row['quantity'] if row['trade_type'].upper() == 'BUY' else -row['quantity'], axis=1)
         print('after quantity check', df_trades_before_current_date)
@@ -271,6 +285,7 @@ def getStockDataFromYahooFinance(symbol, suffix):
     return hist
 
 def my_main(folder_name, mode, target_stock):
+    verbose = True
     print("INFO: Tradebook directory specified as: ", folder_name)
     print("INFO: Operating in mode: ", mode)
     tradebook_file_pattern = "tradebook-*.csv"
@@ -278,18 +293,20 @@ def my_main(folder_name, mode, target_stock):
     corporate_actions_file = 'resources/corporate-actions.csv'
 
     # Read data from all CSV files
-    tradebookData = tradebooks_reader.getTrades(folder_name, tradebook_file_pattern)
-    holdingsData = holdings_reader.getHoldingsAsSellTrades(os.path.join(folder_name, holdings_file))
+    tradebooks = tradebooks_reader.getTrades(folder_name, tradebook_file_pattern, verbose)
+    holdings = holdings_reader.getHoldingsAsSellTrades(os.path.join(folder_name, holdings_file), verbose)
     corporateActionsData = process_corporate_actions(corporate_actions_file)
 
+    #trades_to_snapshots.convert(holdings)
+    #return
     # Calculate XIRR
     #currentValueOfPortfolio = 8071742
     #pfResults_withPresentValue = calculate_xirr(tradebookData.copy(), currentValueOfPortfolio)
     #print(f"Portfolio XIRR (on basis of present value): {pfResults_withPresentValue['xirr']:.2%}")
 
     ## merge holdings data with trade data
-    trades = pd.concat([tradebookData, holdingsData])
-    if len(tradebookData) + len(holdingsData) != len(trades):
+    trades = pd.concat([tradebooks, holdings])
+    if len(tradebooks) + len(holdings) != len(trades):
         print("ERROR: merging of holdings data with tradebook data resulted in mismatch of rows")
 
 

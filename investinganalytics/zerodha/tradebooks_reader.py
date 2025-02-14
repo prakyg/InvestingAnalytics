@@ -21,23 +21,24 @@ def getTrades(dir, filename_pattern, verbose=False):
     TODO: ignore non-csv
     Returns a pandas dataframe containing the following columns:
     symbol: The stock symbol such as INFY
-    trade_date: Date on which trade occured
+    trade_date: Date on which trade occured <class 'datetime.date'>
     trade_type: 'buy' or 'sell'
     quantity: number of stocks that were part of the trade
     price: price at which trade occurred
     """
-    all_data = pd.DataFrame()
+    trades = pd.DataFrame()
     for filename in glob.glob(os.path.join(dir, filename_pattern)):
         print('Reading file: ' + filename)
         data = pd.read_csv(filename)
-        all_data = pd.concat([all_data, data])
+        trades = pd.concat([trades, data])
 
-    all_data = row_transformations(all_data)
+    trades = row_transformations(trades)
     # keep only relevant columns
     columns_to_keep = ['symbol', 'trade_date', 'trade_type', 'quantity', 'price']
-    all_data = all_data[columns_to_keep]
+    trades = trades[columns_to_keep]
+    trades['trade_date'] = pd.to_datetime(trades['trade_date']).dt.date
     if verbose:
         print('------- Trades Data ------')
-        print(all_data)
+        print(trades)
 
-    return all_data
+    return trades
