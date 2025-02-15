@@ -297,8 +297,6 @@ def my_main(folder_name, mode, target_stock):
     holdings = holdings_reader.getHoldingsAsSellTrades(os.path.join(folder_name, holdings_file), verbose)
     corporateActionsData = process_corporate_actions(corporate_actions_file)
 
-    #trades_to_snapshots.convert(holdings)
-    #return
     # Calculate XIRR
     #currentValueOfPortfolio = 8071742
     #pfResults_withPresentValue = calculate_xirr(tradebookData.copy(), currentValueOfPortfolio)
@@ -309,6 +307,9 @@ def my_main(folder_name, mode, target_stock):
     if len(tradebooks) + len(holdings) != len(trades):
         print("ERROR: merging of holdings data with tradebook data resulted in mismatch of rows")
 
+    #trades_to_snapshots.convert(tradebooks)
+    #trades_to_snapshots.convert(holdings)
+    #return
 
     # Download information about all portfolio stocks from yahoo finance APIs
     all_unique_symbols = trades['symbol'].unique()
