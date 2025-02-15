@@ -4,7 +4,6 @@ from datetime import datetime, timedelta, date
 from tabulate import tabulate
 import sys
 import yfinance as yf
-from . import alias_reader
 from . import trades_to_snapshots
 from .zerodha import tradebooks_reader
 from .zerodha import holdings_reader
@@ -221,14 +220,6 @@ def get_close_price(symbol, date, stock_history_database):
         return price
     except:
         return None
-
-def row_transformations(data):
-    data['symbol'] = data['symbol'].apply(trim_hyphen_suffix)
-    for oldname, newname in alias_reader.getAliases('resources/aliases.csv').items():
-        print('replacing', oldname, newname)
-        data['symbol'] = data['symbol'].replace(oldname, newname)
-
-    return data
 
 def process_corporate_actions(filename):
     corporate_actions_data = readFromFileSystem(filename)
