@@ -1,9 +1,8 @@
 import pandas as pd
 from pyxirr import xirr
-from datetime import datetime, timedelta, date
+from datetime import datetime
 from tabulate import tabulate
 import sys
-import yfinance as yf
 from . import trades_to_snapshots
 from .zerodha import tradebooks_reader
 from .zerodha import holdings_reader
@@ -27,10 +26,6 @@ TODOS: 1. In a future version of this program, we would be able to fetch price f
 holdings.csv
 2. holdings.csv should not need quantity which can be calculated from tradebook. However it is useful to detect
 discrepancies due to things like buybacks, gifting of shares, symbol changes, rights etc
-
-Dependencies: Your python env should have pandas module installed.
-
-
 """
 def trades_to_cashflows(trades):
     cashflows = []
@@ -155,72 +150,6 @@ def calculate_xirr_stock(trades, mode, target_stock):
 def trim_hyphen_suffix(text):
     return text.split('-')[0]  # Split on hyphen and return the first part (AEL)
 
-"""
-The snapshot structure is as follows:
-# type: pandas dataframe
-    {
-        'date': [2024-01-01, .....],
-        'totalValue': [],
-        'AveragePE': [],
-        any other consolidated metrics
-        #TODO holdings: []
-    }
-
-Holdings will have:
-    {Stock, quantity, close price}
-"""
-def createSnapshots(trades, stock_history_database):
-    snapshots = {}
-    #TODO: do this in the data prep step
-    trades['trade_date'] = pd.to_datetime(trades['trade_date']).dt.date
-    start_date = trades['trade_date'].min()
-    print('Start date: ', start_date)
-    print('type = ', type(start_date))
-    current_date = start_date
-    print ('type now', type(datetime.today()))
-
-    # we will take start_date - 1 as the portfolio inception date
-    portfolio_inception_date = start_date - timedelta(days=1)
-    snapshots[portfolio_inception_date] = [0]
-    last_snapshot_date = portfolio_inception_date
-    interval = 30
-    while (current_date <= date.today()):
-        print('Creating portfolio snapshot for date:', current_date)
-        ## get all rows where trade_date > last_snapshot_date but <= current_date , TODO:
-        ## for now constructing from start_date each time
-        df_trades_before_current_date = trades[trades['trade_date'] <= current_date].copy()
-        print('----@----@---', df_trades_before_current_date)
-        df_trades_before_current_date['quantity'] = df_trades_before_current_date.apply(lambda row: row['quantity'] if row['trade_type'].upper() == 'BUY' else -row['quantity'], axis=1)
-        print('after quantity check', df_trades_before_current_date)
-        df_portfolio = df_trades_before_current_date.groupby('symbol')['quantity'].sum().reset_index()
-        print('consolidated', df_portfolio)
-        df_portfolio = df_portfolio[df_portfolio['quantity'] != 0]
-        print('removed 0', df_portfolio)
-
-        if not df_portfolio.empty:
-            df_portfolio['market_value'] = 0.0
-            for index, row in df_portfolio.iterrows():
-                close_price = get_close_price(row['symbol'], current_date, stock_history_database)
-                if close_price is None:
-                    print(f"Warning: Could not retrieve close price for {row['symbol']} on {current_date}")
-                    continue #ignore stocks where price data is not present
-                print('got close price as', close_price)
-                df_portfolio.loc[index, 'market_value'] = row['quantity'] * close_price
-            snapshots[current_date] = df_portfolio
-            print('snapshot has been created', df_portfolio)
-        current_date += timedelta(days=interval)
-
-    return snapshots
-
-def get_close_price(symbol, date, stock_history_database):
-    try:
-        stock_history = stock_history_database[symbol]
-        print(stock_history)
-        price = stock_history.loc[date, 'Close']
-        return price
-    except:
-        return None
-
 def process_corporate_actions(filename):
     corporate_actions_data = readFromFileSystem(filename)
     print(corporate_actions_data)
@@ -233,47 +162,6 @@ def readFromFileSystem(filename):
 #TODO
 def print2Precision(num):
     return 1
-
-def getStocksHistory(symbols):
-    stock_history_database = []
-    print('Stock universe of portfolio:', symbols)
-    for symbol in symbols:
-        symbol_history = getStockDataFromYahooFinance(symbol, ".NS")
-        if symbol_history.empty:
-            print('Retrying: Find the stock on BSE...')
-            symbol_history = getStockDataFromYahooFinance(symbol, ".BO")
-
-        if symbol_history.empty:
-            print('Data not found on BSE as well, this stock will be skipped')
-            continue
-
-        # Convert timestamps to dates
-        symbol_history.index = symbol_history.index.date
-        symbol_history.to_csv(symbol + '_history_database.txt')
-        symbol_history.to_excel(symbol + '_e_history_database.xlsx')
-        stock_history_database.append([symbol, symbol_history])
-
-    df = pd.DataFrame(stock_history_database, columns=['symbol', 'history'])
-    df.set_index('symbol')
-    return df
-
-"""
-This method returns historical data of a stock as a Pandas DataFrame
-Format:
-Date, Open, Close, High, Low, Volume, Dividends, Stock Splits
-The index of the dataframe is 'Date' as opposed to row numbers.
-"""
-def getStockDataFromYahooFinance(symbol, suffix):
-    yfinance_symbol = symbol + suffix
-    try:
-        ticker = yf.Ticker(yfinance_symbol)
-        # Get historical data
-        print('Fetching historical data for symbol: ', yfinance_symbol)
-        hist = ticker.history(period="max", interval='1d')
-    except Exception as e:
-        print('An exception occured while trying to fetch data from yahoo finance', e)
-
-    return hist
 
 def my_main(folder_name, mode, target_stock):
     verbose = True
@@ -298,32 +186,10 @@ def my_main(folder_name, mode, target_stock):
     if len(tradebooks) + len(holdings) != len(trades):
         print("ERROR: merging of holdings data with tradebook data resulted in mismatch of rows")
 
-    #trades_to_snapshots.convert(tradebooks)
-    #trades_to_snapshots.convert(holdings)
-    #return
-
     # Download information about all portfolio stocks from yahoo finance APIs
     all_unique_symbols = trades['symbol'].unique()
     #stock_history_database = getStocksHistory(all_unique_symbols)
-    #stock_history_database = getStocksHistory(['SHAKTIPUMP'])
-    #stock_history_database.to_csv('stock_history_database.txt')
-    #stock_history_database.to_excel('e_stock_history_database.xlsx')
-    #df = pd.read_csv('stock_history_database.txt')
-    #e_df = pd.read_excel('e_stock_history_database.xlsx')
-    #if e_df.equals(stock_history_database):
-    #    print("DataFrames are equal.")
-    #else:
-    #    print("DataFrames are not equal.")
-
-    #if df.equals(stock_history_database):
-    #    print("DataFrames are equal txt.")
-    #else:
-    #    print("DataFrames are not equal txt.")
-
-
-    #stock_history_database = getStocksHistory(["FROG"])
-    #print(stock_history_database.head())
-    #get_close_price('MAPMYINDIA', date.fromisoformat("2024-12-20"), stock_history_database)
+    
     #createSnapshots(merged_data, stock_history_database)
 
     stock_wise_results = calculate_xirr_stock(trades.copy(), mode, target_stock)
