@@ -32,9 +32,7 @@ def getAliases(aliasFilePath):
         print(f"WARN: An unexpected error occurred: {e}")
     return aliases
 
-
-# Example usage:
-if __name__ == "__main__":  # This ensures the code only runs when the script is executed directly
+if __name__ == "__main__":
     alias_file = "aliases.csv"  
     alias_dict = getAliases(alias_file)
 

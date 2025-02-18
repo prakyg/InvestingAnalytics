@@ -1,18 +1,15 @@
 import pandas as pd
-from datetime import datetime, timedelta, date
+import os
+from .zerodha import holdings_reader
 
 def convert(trades):
     snapshots = {}
     start_date = trades['trade_date'].min()
     print('The portfolio started on date: ', start_date)
 
-    # Sort the DataFrame by 'trade_date' (important for ordered iteration)
+    # is sorting really required?
     trades = trades.sort_values('trade_date')
     previous_snapshot = pd.DataFrame(index=pd.Index([], name='symbol', dtype=str), columns=['quantity'])
-
-    # we will take start_date - 1 as the portfolio inception date
-    #portfolio_inception_date = start_date - timedelta(days=1)
-    #snapshots[portfolio_inception_date] = previous_snapshot
 
     # Iterate through the groups (which will be in sorted date order)
     for trade_date, day_trades in trades.groupby('trade_date'):
@@ -23,7 +20,11 @@ def convert(trades):
         pd.options.display.max_rows = None
         print(current_snapshot.sort_index())
         previous_snapshot = current_snapshot
-        snapshots[trade_date] = current_snapshot
+        snapshots[trade_date] = {
+            'snapshot': current_snapshot,
+            'cashflow_in': cashflows_in(trades),
+            'cashflow_out': cashflows_out(trades)
+        }
     
     return snapshots
 
@@ -55,3 +56,22 @@ def get_or_create_row(df, symbol):
         new_row = pd.Series({'quantity': 0}, name=symbol)
         df.loc[symbol] = new_row
         return df.loc[symbol] # Return the newly created row
+    
+def cashflows_in(trades):
+    buy_trades = trades[trades['trade_type'] == 'buy']
+    if not buy_trades.empty:
+        return (buy_trades['quantity'] * buy_trades['price']).sum()
+    else:
+        return 0.0
+
+def cashflows_out(trades):
+    sell_trades = trades[trades['trade_type'] == 'sell']
+    if not sell_trades.empty:
+        return (sell_trades['quantity'] * sell_trades['price']).sum()
+    else:
+        return 0.0
+    
+if __name__ == "__main__":  # This ensures the code only runs when the script is executed directly
+    holdings = "holdings.csv"  
+    holdings = holdings_reader.getHoldingsAsSellTrades(os.path.join('prakash', 'holdings.csv'))
+    print(convert(holdings))

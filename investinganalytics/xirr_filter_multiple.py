@@ -176,6 +176,9 @@ def my_main(folder_name, mode, target_stock):
     holdings = holdings_reader.getHoldingsAsSellTrades(os.path.join(folder_name, holdings_file), verbose)
     corporateActionsData = process_corporate_actions(corporate_actions_file)
 
+    print(trades_to_snapshots.convert(holdings))
+    return
+
     # Calculate XIRR
     #currentValueOfPortfolio = 8071742
     #pfResults_withPresentValue = calculate_xirr(tradebookData.copy(), currentValueOfPortfolio)
