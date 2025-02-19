@@ -2,29 +2,80 @@ import pandas as pd
 import os
 from .zerodha import holdings_reader
 
+class Snapshots:
+    def __init__(self):
+        self.snapshots = {}
+
+    def add(self, some_date, value):
+        self.snapshots[some_date] = value
+    
+    def get_closest_previous_snapshot(self, some_date):
+        # TODO: need to convert this to pandas dataframe to efficiently support this operation
+        return self.snapshots[some_date]['snapshot']
+
+# need to distinguish Snapshot with  a holding, need to think of a good domain model
+class Snapshot:
+    def __init__(self):
+        self.df = pd.DataFrame(index=pd.Index([], name='symbol', dtype=str), columns=['quantity'])
+    
+    def update(self, symbol, quantity):
+        if symbol in self.df.index:
+            self.df.loc[symbol, 'quantity'] += quantity  # Direct DataFrame update
+        else:
+            self.df.loc[symbol, 'quantity'] = quantity
+    
+        if self.df.loc[symbol, 'quantity'] == 0:
+            self.remove(symbol)
+        elif self.df.loc[symbol, 'quantity'] < 0:
+            print('ERROR: quantity has become negative which is not possible')
+
+    def remove(self, symbol):
+        self.df.drop(symbol, inplace=True)
+    
+    def copy(self):
+        # Create a new empty snapshot
+        new_snapshot = Snapshot()
+        new_snapshot.df = self.df.copy()
+        return new_snapshot
+    
+    def print(self):
+        print('------  snapshot is ---------')
+        pd.options.display.max_rows = None
+        print(self.df.sort_index())\
+            
+    def get_or_create_row(self, symbol):
+        print('here')
+        if symbol in self.df.index:
+            return self.df.loc[symbol]  # Return existing row
+        else:
+            new_row = pd.Series({'quantity': 0}, name=symbol)
+            self.df.loc[symbol] = new_row
+            return self.df.loc[symbol] # Return the newly created row
+
 def convert(trades):
-    snapshots = {}
+    """
+    Format of Snapshot data
+    """
+    snapshots = Snapshots()
     start_date = trades['trade_date'].min()
     print('The portfolio started on date: ', start_date)
 
-    # is sorting really required?
+    # Sort the trades, as we will apply the trades over a previous snapshot (to avoid complete recalcultion)
     trades = trades.sort_values('trade_date')
-    previous_snapshot = pd.DataFrame(index=pd.Index([], name='symbol', dtype=str), columns=['quantity'])
+    previous_snapshot = Snapshot()
 
     # Iterate through the groups (which will be in sorted date order)
     for trade_date, day_trades in trades.groupby('trade_date'):
         print(f"For Trade Date: {trade_date}")
         print(day_trades)
         current_snapshot = apply_trades(previous_snapshot.copy(), day_trades)
-        print('------  snapshot is ---------')
-        pd.options.display.max_rows = None
-        print(current_snapshot.sort_index())
+        current_snapshot.print()
         previous_snapshot = current_snapshot
-        snapshots[trade_date] = {
+        snapshots.add(trade_date, {
             'snapshot': current_snapshot,
             'cashflow_in': cashflows_in(trades),
             'cashflow_out': cashflows_out(trades)
-        }
+        })
     
     return snapshots
 
@@ -36,27 +87,15 @@ def apply_trades(snapshot, trades):
 
 def apply_trade(snapshot, trade):
     symbol = trade['symbol']
-    holding_row_for_symbol = get_or_create_row(snapshot, symbol)
+    print('@prak - for symbol - ', symbol)
     if trade['trade_type'] == 'buy':
-        holding_row_for_symbol['quantity'] += trade['quantity']
+        snapshot.update(symbol, trade['quantity'])
     elif trade['trade_type'] == 'sell':
-        holding_row_for_symbol['quantity'] -= trade['quantity']
+        quantity = trade['quantity'] * -1
+        snapshot.update(symbol, quantity)
     else:
         print('WARN: trade_type found except buy or sell')
-
-    if holding_row_for_symbol['quantity'] == 0:
-        snapshot.drop(symbol, inplace=True)
-    if holding_row_for_symbol['quantity'] < 0:
-        print('ERROR: quantity has become negative which is not possible')
-
-def get_or_create_row(df, symbol):
-    if symbol in df.index:
-        return df.loc[symbol]  # Return existing row
-    else:
-        new_row = pd.Series({'quantity': 0}, name=symbol)
-        df.loc[symbol] = new_row
-        return df.loc[symbol] # Return the newly created row
-    
+        
 def cashflows_in(trades):
     buy_trades = trades[trades['trade_type'] == 'buy']
     if not buy_trades.empty:
