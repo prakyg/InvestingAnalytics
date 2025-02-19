@@ -41,7 +41,7 @@ class Snapshot:
     def print(self):
         print('------  snapshot is ---------')
         pd.options.display.max_rows = None
-        print(self.df.sort_index())\
+        print(self.df.sort_index())
             
     def get_or_create_row(self, symbol):
         print('here')
